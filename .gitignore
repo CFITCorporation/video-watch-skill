@@ -1,0 +1,21 @@
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 本机生成的配置：含本机绝对路径，不应进仓库
+vw.config.json
+
+# 默认输出目录
+out/
+vw_out/
+vw_sheets/
+vw_gif/
+vw_grid/
+vw_seq/
+vw_read/
+vw_ocr/
+vw_plan/
+vw_report/
+
+# 测试产物
+_验证/

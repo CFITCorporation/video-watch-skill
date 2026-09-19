@@ -1,0 +1,3 @@
+# asr 子命令（语音转写，faster-whisper）。
+# 会连带装 ctranslate2 与 onnxruntime；首次运行另需下载模型。
+faster-whisper

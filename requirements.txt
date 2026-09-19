@@ -1,0 +1,10 @@
+# video-watch 常用可选依赖。
+#
+# 主链路（probe / plan / sheet / grid / seq / read / report）零第三方依赖，
+# 不装本文件也能跑。这里两件是常用可选件：
+#   pillow  gif 子命令
+#   numpy   vwtools 专用脚本
+#
+# 只要其中一件就单独 pip install，不必整份装。
+pillow
+numpy
