@@ -69,7 +69,7 @@ python vw.py doctor     # 再跑一次，应报"必需项就绪"
 python vw.py probe clip.mp4 --out work/           # 量测全片，产出 timeline.json
 python vw.py plan work/timeline.json              # 采样计划 → shotlist.json
 python vw.py grid --media clip.mp4 --frames 25 --cols 5 --out work/   # 一张图粗看全片
-python vw.py read --media clip.mp4 --times "2,5" --region "100,100,600,400" --out work/       # 读字（时刻与区域按你的素材调）
+python vw.py read --media clip.mp4 --times "2,5" --region "100,100,600,400" --out work/read/  # 读字（时刻与区域按你的素材调）
 python vw.py report work/timeline.json work/shotlist.json --manifest work/manifest.json --out 报告.md
 ```
 

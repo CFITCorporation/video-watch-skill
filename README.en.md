@@ -77,7 +77,7 @@ python vw.py doctor     # run again; every required item should now be reported 
 python vw.py probe clip.mp4 --out work/           # measure the whole clip -> timeline.json
 python vw.py plan work/timeline.json              # sampling plan -> shotlist.json
 python vw.py grid --media clip.mp4 --frames 25 --cols 5 --out work/   # one image, whole clip
-python vw.py read --media clip.mp4 --times "2,5" --region "100,100,600,400" --out work/         # read text (adjust times/region to your clip)
+python vw.py read --media clip.mp4 --times "2,5" --region "100,100,600,400" --out work/read/   # read text (adjust times/region to your clip)
 python vw.py report work/timeline.json work/shotlist.json --manifest work/manifest.json --out report.md
 ```
 

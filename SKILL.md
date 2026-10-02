@@ -255,7 +255,7 @@ GIF/WebP **按帧延迟归一化成真实时间轴**再走同一条路 —— �
 python vw.py grid --media <视频> --frames 25 --cols 5 --out <目录>
 
 # 动作显微镜：把 1.4s 铺成 25 格 ≈ 1.8 帧取 1；要真逐帧得 --frames 43
-python vw.py grid --media <视频> --t0 11.4 --t1 12.84 --frames 25 --cols 5 --out <目录>
+python vw.py grid --media <视频> --t0 1.0 --t1 2.44 --frames 25 --cols 5 --out <目录>
 ```
 
 **核心认知：分辨率与时序密度是两个独立维度。**
@@ -300,7 +300,7 @@ python vw.py grid --media <视频> --t0 11.4 --t1 12.84 --frames 25 --cols 5 --o
 
 ```bash
 # --center/--count 要在片长内，--region 要在画面内（越界会被明确拒绝，不会静默钳位）
-python vw.py seq --media <视频> --center 3.5 --count 14 --step 0.15 --region "240,1000,120,60" --zoom 3 --out <目录>
+python vw.py seq --media <视频> --center 2.0 --count 8 --step 0.1 --region "240,100,120,60" --zoom 3 --out <目录>
 ```
 
 把同一块地方**按帧号前后排好**、纵排成条，每格左上角烧**帧序号**（1,2,3…）。我自上而下顺序读，就得到运动。
@@ -320,7 +320,7 @@ python vw.py seq --media <视频> --center 3.5 --count 14 --step 0.15 --region "
 
 ```bash
 # --times 要在片长内，--region 要在画面内
-python vw.py read --media <视频> --times "20,45" --region "60,390,1170,570" --panel medium --pack 2 --out <目录>
+python vw.py read --media <视频> --times "2,5" --region "100,100,600,400" --panel medium --pack 2 --out <目录>
 ```
 
 把画面按 pw×ph 网格切成**可读面板**（自动跳过空白块），每张图放 `--pack` 个面板。
@@ -398,7 +398,7 @@ for i, f in enumerate(fr):
         print(f"帧{i-1}→{i} ({i/FPS:.2f}s) 掉 {prev-n}")
     prev = n
 
-report(diff_lost(fr, 88, 90, target, out_png="overlay.png"))   # 差分取证 + 叠加原帧
+report(diff_lost(fr, 帧A, 帧B, target, out_png="overlay.png"))   # 差分取证 + 叠加原帧；帧A/帧B 换成你要比的两帧
 ```
 
 ### 两条硬规矩

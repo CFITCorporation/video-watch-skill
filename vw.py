@@ -321,11 +321,15 @@ def font_effective(ffmpeg, font):
 
 
 def require_font(ffmpeg):
-    """取字体并确认它真的生效；生效不了只警告，不中断。"""
+    """取字体并确认它真的生效；生效不了只警告，不中断。
+
+    警告走 stdout 而不是 stderr —— 脚本化调用通常只看 stdout 与退出码，
+    写进 stderr 会让他们拿着一份字体不对的图版继续往下做。
+    """
     font = resolve_font()
     if font_effective(ffmpeg, font) is False:
         print("警告：字体未生效，ffmpeg 已退回默认字体 —— 图版里的索引不是你指定的字体。"
-              "判据与处理见 AGENTS.md 的字体一节。", file=sys.stderr)
+              "判据与处理见 AGENTS.md 的字体一节。")
     return font
 
 
@@ -531,6 +535,8 @@ def cmd_probe(args):
 
 
 def load_json(path):
+    if not os.path.exists(path):
+        die(f"找不到文件 {path} —— 检查路径，或先把生成它的那一步跑掉")
     with open(path, encoding="utf-8") as fh:
         return json.load(fh)
 
@@ -892,12 +898,19 @@ def build_segments(tl, min_len=4.0):
 
 
 def tiles_in_range(manifest, start, end):
+    """落在 [start, end) 里的图版位置。
+
+    走 manifest_sections()，与 report 第 4 节同一口径 —— 否则 read / gif 的 manifest
+    会在这里崩，grid 的会静默返回空（段落表那列印成「—」，而第 4 节又列得出位置）。
+    """
     hits = []
-    for sh in manifest.get("sheets", []):
-        for t in sh["tiles"]:
+    for sheet, rows in (manifest_sections(manifest) or []):
+        for t in rows:
+            if not isinstance(t.get("t"), (int, float)):
+                continue
             if start <= t["t"] < end:
                 pos = (f"第{t['row']}行第{t['col']}列" if "row" in t else f"第{t.get('pos')}格")
-                hits.append({"sheet": os.path.basename(sh["sheet"]), "pos": pos,
+                hits.append({"sheet": sheet, "pos": pos,
                              "index": t.get("index"), "t": t["t"]})
     return hits
 
@@ -1329,7 +1342,7 @@ def cmd_doctor(args):
     ffmpeg, blocked = None, False
     for cand, state, missing in scan_ffmpeg():
         if state == "ok":
-            print(f"ffmpeg      {cand}")
+            print(f"ffmpeg      {cand}" + ("   （备选）" if blocked else ""))
             print(f"            {_version_line([cand, '-version']) or ''}")
             if not blocked:
                 ffmpeg = cand

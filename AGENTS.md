@@ -50,15 +50,17 @@ ffmpeg -f lavfi -i "testsrc2=size=1280x720:rate=30:duration=9" -f lavfi -i "sine
 对策：让它读**每次现读的配置文件**（`python vw.py init` 写出的 `vw.config.json`），
 或先用 `VW_FFMPEG` 指向绝对路径。别只写环境变量就以为完事。
 
-### 2. 缺 `drawtext` 的报错**出现在抽帧那一步**
+### 2. ffmpeg 必须是完整构建（缺滤镜是**启动即报错**）
 
-ffmpeg 需要这七个滤镜：`scdet` `freezedetect` `silencedetect` `tblend` `signalstats`
-`tile` `drawtext`。
+需要这七个滤镜：`scdet` `freezedetect` `silencedetect` `tblend` `signalstats`
+`tile` `drawtext`。其中 `drawtext` 依赖编译时的 libfreetype，部分构建不带。
 
-其中 `drawtext` 依赖编译时的 libfreetype，部分构建不带。缺它时，`probe` / `plan` 一切正常，
-直到 `grid` / `sheet` / `seq` 才失败，而报错落在**抽帧**那一步，看起来与字体毫无关系。
+缺任何一个，**任何要调 ffmpeg 的子命令都会在启动时当场退出**，并点名缺哪几个：
 
-对策：`doctor` 会逐个校验，以它为准；别顺着抽帧的报错去查抽帧。
+    错误：C:\…\ffmpeg.exe 缺少滤镜 scdet, freezedetect, … , drawtext；
+         该构建不完整，请用 VW_FFMPEG 或配置文件指向完整版
+
+所以照着报错走就行：**点到哪个缺，就换个完整构建**。`plan` / `report` 不调 ffmpeg，不受影响。
 
 ### 3. 字体可能**静默失效**
 
