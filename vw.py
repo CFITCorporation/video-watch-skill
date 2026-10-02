@@ -629,6 +629,9 @@ def cmd_plan(args):
                 progressing = True
                 break
 
+    # 预算用尽时，剩下的候选根本没轮到就被丢下 —— 它们不计入 skipped，
+    # 于是「事件 N 处」看起来像是把事件都处理完了。这里把差额显式数出来。
+    unconsidered = sum(len(lst) - cursor[w] for w, lst in buckets_of_win.items())
     if burst > 1:
         dense = []
         for t, phase, why in plan:
@@ -662,8 +665,11 @@ def cmd_plan(args):
     print(f"骨架 {args.skeleton} 帧（间隔 {dur / args.skeleton:.2f}s，盲区上界 {skeleton_gap:.2f}s）"
           f" + 事件 {taken} 处 → 共 {len(plan)} 帧")
     if skipped:
-        print(f"  ! 另有 {skipped} 处候选事件与已选点过近被跳过（当前最小间隔 {min_gap:.2f}s）"
-              f"—— 想让它们进来就调稀 --skeleton 或调小 --burst")
+        print(f"  ! 另有 {skipped} 处候选事件与已选点过近被跳过（当前最小间隔 {min_gap:.2f}s）")
+    if unconsidered:
+        print(f"  ! 还有 {unconsidered} 处候选事件因预算用尽未纳入 —— 本片共 "
+              f"{taken + skipped + unconsidered} 处候选，纳入 {taken} 处。"
+              f"想提高覆盖就调大 --max 或调小 --burst")
     print(f"最终最大盲区 {final_gap:.2f}s  {sheets} 张 {cols}x{args.per_sheet // cols} 图版"
           f" ≈ {sheets * TOKENS_PER_IMAGE} token")
     per_win = {w: sum(1 for p in plan if p[1] == "B" and int(p[0] // window) == w)
