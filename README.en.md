@@ -77,7 +77,7 @@ python vw.py doctor     # run again; every required item should now be reported 
 python vw.py probe clip.mp4 --out work/           # measure the whole clip -> timeline.json
 python vw.py plan work/timeline.json              # sampling plan -> shotlist.json
 python vw.py grid --media clip.mp4 --frames 25 --cols 5 --out work/   # one image, whole clip
-python vw.py read --media clip.mp4 --times "20,45" --region "60,390,1170,570" --out work/   # read text
+python vw.py read --media clip.mp4 --times "2,5" --region "100,100,600,400" --out work/         # read text (adjust times/region to your clip)
 python vw.py report work/timeline.json work/shotlist.json --manifest work/manifest.json --out report.md
 ```
 
@@ -127,7 +127,7 @@ The config only supplies **defaults**. Precedence:
 | Key | Purpose |
 |---|---|
 | `ffmpeg` / `ffprobe` / `magick` / `font` | external program and font paths — absolute paths, or **leave empty to auto-detect (recommended)** |
-| `outdir` | root directory for all output; empty means the current directory |
+| `outdir` | root directory for all output; when empty, each subcommand writes to its own folder under the current directory (e.g. `vw_grid/`) |
 | `defaults.*` | per-subcommand default arguments, so you stop typing them |
 
 **In practice you can leave all four path keys empty** — they auto-detect from the environment and built-in

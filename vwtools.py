@@ -17,11 +17,16 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
 from collections import deque
 
 import numpy as np
 from PIL import Image, ImageSequence
+
+# 与 vw.py 保持一致：不重配置的话，中文在 GBK 控制台上会乱码
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8")
 
 
 def _resolve_ffmpeg():

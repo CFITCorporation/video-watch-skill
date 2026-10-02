@@ -69,7 +69,7 @@ python vw.py doctor     # 再跑一次，应报"必需项就绪"
 python vw.py probe clip.mp4 --out work/           # 量测全片，产出 timeline.json
 python vw.py plan work/timeline.json              # 采样计划 → shotlist.json
 python vw.py grid --media clip.mp4 --frames 25 --cols 5 --out work/   # 一张图粗看全片
-python vw.py read --media clip.mp4 --times "20,45" --region "60,390,1170,570" --out work/   # 读字
+python vw.py read --media clip.mp4 --times "2,5" --region "100,100,600,400" --out work/       # 读字（时刻与区域按你的素材调）
 python vw.py report work/timeline.json work/shotlist.json --manifest work/manifest.json --out 报告.md
 ```
 
@@ -118,7 +118,7 @@ python vw.py report work/timeline.json work/shotlist.json --manifest work/manife
 | 键 | 作用 |
 |---|---|
 | `ffmpeg` / `ffprobe` / `magick` / `font` | 外部程序与字体路径，填绝对路径；**留空则自动探测（推荐）** |
-| `outdir` | 所有输出的根目录，留空则输出到当前目录 |
+| `outdir` | 所有输出的根目录；留空时各子命令落到当前目录下的 `<名字>\`（如 `vw_grid\`） |
 | `defaults.*` | 子命令默认参数，省得每次手敲 |
 
 **四个路径键通常留空即可** —— 留空就按环境变量与内置候选自动探测，`vw.py init` 还会把探测到的路径直接填好。

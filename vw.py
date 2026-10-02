@@ -54,6 +54,26 @@ def die(msg):
     sys.exit(2)
 
 
+def require_time_in_clip(times, duration, label="时刻"):
+    """时刻越界就明确报错。
+
+    不检查的话 ffmpeg 会把超出的时刻钳到片尾：产物照常生成、退出码 0，
+    但整张图版是同几帧的复制，表面完全正常。
+    """
+    late = sorted({round(t, 3) for t in times if t >= duration})
+    if late:
+        die(f"{label} {'、'.join(f'{t}s' for t in late)} 超出素材时长 {duration:.2f}s")
+
+
+def require_region_in_frame(region, width, height):
+    """裁切区域越界就明确报错 —— ffmpeg 的 crop 越界时会静默钳位。"""
+    x, y, w, h = region
+    if w <= 0 or h <= 0:
+        die(f"--region 的宽高必须为正数，收到 w={w} h={h}")
+    if x + w > width or y + h > height:
+        die(f"--region x={x} y={y} w={w} h={h} 超出画面 {width}x{height}")
+
+
 CONFIG = {}
 CONFIG_OVERRIDE = None
 CONFIG_PATH = None
@@ -942,6 +962,10 @@ def cmd_grid(args):
 
     t0 = args.t0
     t1 = args.t1 if args.t1 is not None else info["duration"]
+    require_time_in_clip([t0], info["duration"], "起始时刻")
+    if t1 > info["duration"]:
+        print(f"警告：结束时刻 {t1}s 超出素材时长 {info['duration']:.2f}s，超出部分会钳到片尾",
+              file=sys.stderr)
     n = args.frames
     step = (t1 - t0) / max(1, n - 1)
     cols = args.cols
@@ -958,6 +982,7 @@ def cmd_grid(args):
             gx, gy, gw, gh = [int(v) for v in args.region.split(",")]
         except ValueError:
             die("--region 需要 x,y,w,h 四个整数")
+        require_region_in_frame((gx, gy, gw, gh), info["width"], info["height"])
         pre = f"crop={gw}:{gh}:{gx}:{gy},"
         flags = fit_filter(gw, tile_w)
     for i in range(n):
@@ -1015,8 +1040,12 @@ def cmd_seq(args):
         times = [float(v) for v in args.times.split(",")]
     elif args.center is not None:
         n = args.count
-        times = [args.center + (i - n // 2) * args.step for i in range(n)]
-        times = [t for t in times if 0 <= t <= info["duration"]]
+        wanted = [args.center + (i - n // 2) * args.step for i in range(n)]
+        times = [t for t in wanted if 0 <= t <= info["duration"]]
+        if len(times) < len(wanted):
+            print(f"警告：--center {args.center}s 配 --count {n} 会取到 {len(wanted)} 个时刻，"
+                  f"其中 {len(wanted) - len(times)} 个超出素材范围，已丢弃",
+                  file=sys.stderr)
     else:
         die("需要 --times 或 --center")
 
@@ -1025,6 +1054,7 @@ def cmd_seq(args):
             rx, ry, rw, rh = [int(v) for v in args.region.split(",")]
         except ValueError:
             die("--region 需要 x,y,w,h 四个整数")
+        require_region_in_frame((rx, ry, rw, rh), info["width"], info["height"])
     else:
         rx, ry, rw, rh = 0, 0, info["width"], info["height"]
 
@@ -1089,6 +1119,7 @@ def cmd_read(args):
             rx, ry, rw, rh = [int(v) for v in args.region.split(",")]
         except ValueError:
             die("--region 需要 x,y,w,h 四个整数")
+        require_region_in_frame((rx, ry, rw, rh), info["width"], info["height"])
     else:
         rx, ry, rw, rh = 0, 0, info["width"], info["height"]
 
@@ -1097,6 +1128,7 @@ def cmd_read(args):
     else:
         sl = load_json(args.shotlist)
         times = [s["t"] for s in sl["shots"]]
+    require_time_in_clip(times, info["duration"])
 
     pw, ph = PANEL_PRESETS[args.panel]
     zoom = args.zoom
@@ -1208,6 +1240,8 @@ def cmd_ocr(args):
     media = os.path.abspath(args.media)
     outdir = out_dir(args, "vw_ocr")
     os.makedirs(outdir, exist_ok=True)
+    info = ffprobe_info(ffmpeg, media)
+    require_time_in_clip([s["t"] for s in sl["shots"]], info["duration"])
     engine = RapidOCR()
     manifest = load_json(args.manifest) if args.manifest else None
 
@@ -1217,6 +1251,7 @@ def cmd_ocr(args):
             x, y, w, h = [int(v) for v in args.region.split(",")]
         except ValueError:
             die("--region 需要 x,y,w,h 四个整数")
+        require_region_in_frame((x, y, w, h), info["width"], info["height"])
         vf.append(f"crop={w}:{h}:{x}:{y}")
     if args.zoom != 1:
         vf.append(f"scale=iw*{args.zoom}:ih*{args.zoom}")
