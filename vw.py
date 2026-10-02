@@ -10,12 +10,14 @@ gif    动图线。GIF/WebP 按帧延迟归一化成真实时间轴，再走同�
 拼版换覆盖率，裁切放大换分辨率，两者不可兼得。
 """
 import argparse
+import hashlib
 import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 
 for _stream in (sys.stdout, sys.stderr):
     if hasattr(_stream, "reconfigure"):
@@ -207,15 +209,30 @@ def resolve_magick():
 
 
 def magick(sub, *args):
-    """拼出 ImageMagick 命令：7.x 走 magick 聚合入口，6.x 走独立命令。"""
+    """拼出 ImageMagick 命令：7.x 走 magick 聚合入口，6.x 走独立命令。
+
+    7.x 的 convert 系操作由裸入口承担 —— `magick convert` 是已废弃的 v6 兼容形式，
+    语义是旧的（选项分组执行、alpha 默认处理不同），新版构建也已不再提供该子命令。
+    """
     major, exe = resolve_magick()
-    prefix = [exe, sub] if major >= 7 else [shutil.which(sub) or sub]
+    if major >= 7:
+        prefix = [exe] if sub == "convert" else [exe, sub]
+    else:
+        prefix = [shutil.which(sub) or sub]
     return run([*prefix, *args])
 
 
 def escape_filter_path(path):
-    """ffmpeg filter 参数里冒号是分隔符：Windows 盘符要转义，反斜杠统一成正斜杠。"""
-    return path.replace("\\", "/").replace(":", "\\:")
+    """把路径转成能放进 ffmpeg filter 的形式。
+
+    冒号是 filter 参数的分隔符必须转义，反斜杠统一成正斜杠。
+    Windows 盘符路径还要整体加单引号 —— 只转义冒号的话 ffmpeg 会把路径截断，
+    表现为静默退回默认字体（旧构建）或直接报错（新构建）。
+    """
+    p = path.replace("\\", "/").replace(":", "\\:")
+    if os.name == "nt" and len(path) > 1 and path[1] == ":":
+        return "'" + p + "'"
+    return p
 
 
 def find_font():
@@ -233,6 +250,46 @@ def resolve_font():
         die("找不到可用于 drawtext 的字体：装 DejaVu 或 Noto 字体，"
             "或用 VW_FONT 指向一个 .ttf/.ttc")
     return escape_filter_path(font)
+
+
+def _probe_render(ffmpeg, font):
+    """渲染一个字符，返回产物的哈希；渲染不出来返回 None。"""
+    with tempfile.TemporaryDirectory() as td:
+        out = os.path.join(td, "probe.png")
+        vf = f"drawtext=fontfile={font}:text='7':x=4:y=2:fontsize=20:fontcolor=yellow"
+        r = subprocess.run(
+            [ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi",
+             "-i", "color=c=black:s=120x48:d=1", "-frames:v", "1", "-vf", vf, "-y", out],
+            capture_output=True)
+        if r.returncode != 0 or not os.path.exists(out):
+            return None
+        with open(out, "rb") as fh:
+            return hashlib.sha256(fh.read()).hexdigest()
+
+
+def font_effective(ffmpeg, font):
+    """fontfile 是否真的生效，返回 True / False / None（判不了）。
+
+    判据是以「一个保证不存在的字体路径」作对照：ffmpeg 在路径解析失败时会静默
+    退回默认字体，产物与对照相同即说明 fontfile 根本没被读。
+    """
+    mine = _probe_render(ffmpeg, font)
+    if mine is None:
+        return None
+    ghost = _probe_render(ffmpeg, escape_filter_path(
+        os.path.join(tempfile.gettempdir(), "__vw_no_such_font__.ttf")))
+    if ghost is None:
+        return None
+    return mine != ghost
+
+
+def require_font(ffmpeg):
+    """取字体并确认它真的生效；生效不了只警告，不中断。"""
+    font = resolve_font()
+    if font_effective(ffmpeg, font) is False:
+        print("警告：字体未生效，ffmpeg 已退回默认字体 —— 图版里的索引不是你指定的字体。"
+              "判据与处理见 AGENTS.md 的字体一节。", file=sys.stderr)
+    return font
 
 
 def find_ffprobe(ffmpeg):
@@ -624,7 +681,7 @@ def cmd_sheet(args):
                                int(640000 / max(1, sw * sz * sh * sz))))
         print(f"条带每张 {per_strip} 格（受单图 64 万像素与 8:1 宽高比约束）")
     step = per_strip if strip else per_sheet
-    font = None if strip else resolve_font()
+    font = None if strip else require_font(ffmpeg)
 
     manifest = {"media": os.path.basename(media), "per_sheet": per_sheet, "cols": cols,
                 "rows": rows, "tile_width": tile_w, "mode": "strip" if strip else
@@ -890,7 +947,7 @@ def cmd_grid(args):
     cols = args.cols
     rows = (n + cols - 1) // cols
     tile_w = SHEET_PX // cols - 2
-    font = resolve_font()
+    font = require_font(ffmpeg)
 
     tiles, mapping = [], []
     last = max(0.0, info["duration"] - 0.1)
@@ -973,7 +1030,7 @@ def cmd_seq(args):
 
     z = args.zoom
     per_strip = max(2, min(len(times), int(8 * rw / rh), int(640000 / max(1, rw * z * rh * z))))
-    font = resolve_font()
+    font = require_font(ffmpeg)
     strips, mapping = [], []
     for start in range(0, len(times), per_strip):
         group = times[start:start + per_strip]
@@ -1242,6 +1299,13 @@ def cmd_doctor(args):
     font = find_font()
     if font:
         print(f"font        {font}")
+        eff = font_effective(ffmpeg, escape_filter_path(font)) if ffmpeg else None
+        if eff is True:
+            print("            生效：ffmpeg 确实加载了它")
+        elif eff is False:
+            print("            未生效：ffmpeg 会退回默认字体，图版里的索引不是你指定的字体")
+        else:
+            print("            无法判定（探针渲染失败）")
     else:
         print("font        找不到，用 VW_FONT 指定 .ttf/.ttc")
 
@@ -1441,7 +1505,7 @@ def build_parser():
 
     p = sub.add_parser("probe", help="量测：切点/冻结/运动/静音")
     p.add_argument("media")
-    p.add_argument("--out", default=None)
+    p.add_argument("--out", default=None, help="输出目录")
     p.add_argument("--scdet", type=float, default=10.0)
     p.add_argument("--no-audio", action="store_true")
     p.set_defaults(func=cmd_probe)
@@ -1457,13 +1521,14 @@ def build_parser():
     p.add_argument("--burst", type=int, default=0,
                    help="事件处成组采样帧数；0=按内容自动（高运动 3，低运动 1）")
     p.add_argument("--burst-dt", type=float, default=0.12, help="组内帧间隔秒")
-    p.add_argument("--out", default=None)
+    p.add_argument("--out", default=None,
+                   help="输出文件路径（默认落时间轴同目录或 <outdir>/vw_plan/）")
     p.set_defaults(func=cmd_plan)
 
     p = sub.add_parser("sheet", help="图版：联络表 + 位置映射清单")
     p.add_argument("shotlist")
     p.add_argument("media")
-    p.add_argument("--out", default=None)
+    p.add_argument("--out", default=None, help="输出目录")
     p.add_argument("--diff", type=float, default=0.0,
                    help="差分模式：与 t+Δ 帧做绝对差，Δ 秒")
     p.add_argument("--strip", default=None, help="定窗条带：x,y,w,h（裁同一区域跨帧纵排）")
@@ -1472,7 +1537,7 @@ def build_parser():
 
     p = sub.add_parser("gif", help="动图：按帧延迟归一化时间轴")
     p.add_argument("media")
-    p.add_argument("--out", default=None)
+    p.add_argument("--out", default=None, help="输出目录")
     p.add_argument("--max-frames", type=int, default=18)
     p.set_defaults(func=cmd_gif)
 
@@ -1484,7 +1549,7 @@ def build_parser():
     p.add_argument("--cols", type=int, default=cfg("cols", 5))
     p.add_argument("--region", default=None,
                    help="先裁感兴趣区再铺格 x,y,w,h（大尺寸源下把像素预算花在内容上）")
-    p.add_argument("--out", default=None)
+    p.add_argument("--out", default=None, help="输出目录")
     p.set_defaults(func=cmd_grid)
 
     p = sub.add_parser("seq", help="帧号排序的区域序列（读运动的主通道）")
@@ -1495,7 +1560,7 @@ def build_parser():
     p.add_argument("--step", type=float, default=0.1, help="相邻帧间隔秒，决定能否看清快动作")
     p.add_argument("--region", default=None, help="x,y,w,h；默认整帧")
     p.add_argument("--zoom", type=int, default=3)
-    p.add_argument("--out", default=None)
+    p.add_argument("--out", default=None, help="输出目录")
     p.set_defaults(func=cmd_seq)
 
     p = sub.add_parser("read", help="切可读面板供视觉直接读字（读字主通道）")
@@ -1506,13 +1571,13 @@ def build_parser():
     p.add_argument("--panel", default=cfg("panel", "medium"), choices=sorted(PANEL_PRESETS))
     p.add_argument("--zoom", type=int, default=2)
     p.add_argument("--pack", type=int, default=1, help="每张图放几个面板（1 最清晰，4 最省）")
-    p.add_argument("--out", default=None)
+    p.add_argument("--out", default=None, help="输出目录")
     p.set_defaults(func=cmd_read)
 
     p = sub.add_parser("ocr", help="（不推荐）本地库 OCR，仅作覆盖参考")
     p.add_argument("shotlist")
     p.add_argument("media")
-    p.add_argument("--out", default=None)
+    p.add_argument("--out", default=None, help="输出目录")
     p.add_argument("--manifest", default=None)
     p.add_argument("--region", default=None, help="只识别该区域 x,y,w,h（如字幕条/正文区）")
     p.add_argument("--zoom", type=int, default=2, help="识别前放大倍数，小字必须放大")
@@ -1522,7 +1587,7 @@ def build_parser():
 
     p = sub.add_parser("asr", help="语音文字：faster-whisper 带时间戳转写")
     p.add_argument("media")
-    p.add_argument("--out", default=None)
+    p.add_argument("--out", default=None, help="输出目录")
     p.add_argument("--model", default=cfg("model", "base"))
     p.add_argument("--lang", default=cfg("lang", None), help="如 zh；不填则自动检测")
     p.add_argument("--manifest", default=None, help="提供则把每段文字挂到对应图版位置")
@@ -1534,7 +1599,8 @@ def build_parser():
     p.add_argument("--manifest", default=None)
     p.add_argument("--ocr", default=None)
     p.add_argument("--asr", default=None)
-    p.add_argument("--out", default=None)
+    p.add_argument("--out", default=None,
+                   help="报告文件路径（默认落时间轴同目录或 <outdir>/vw_report/）")
     p.set_defaults(func=cmd_report)
 
     sub.add_parser("doctor", help="依赖自检：报出外部程序与可选库的状态").set_defaults(

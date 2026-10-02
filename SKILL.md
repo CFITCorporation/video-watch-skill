@@ -292,8 +292,7 @@ python vw.py grid --media <视频> --t0 11.4 --t1 12.84 --frames 25 --cols 5 --o
 ### 6. seq 帧号序列（区域级运动，配合 grid 用）
 
 ```bash
-python vw.py seq --media <视频> \
-  --center 3.5 --count 14 --step 0.15 --region "240,1000,120,60" --zoom 3 --out <目录>
+python vw.py seq --media <视频> --center 3.5 --count 14 --step 0.15 --region "240,1000,120,60" --zoom 3 --out <目录>
 ```
 
 把同一块地方**按帧号前后排好**、纵排成条，每格左上角烧**帧序号**（1,2,3…）。我自上而下顺序读，就得到运动。
@@ -312,8 +311,7 @@ python vw.py seq --media <视频> \
 ### 7. read 切可读面板（★ 读字主通道）
 
 ```bash
-python vw.py read --media <视频> --times "20,45" \
-  --region "60,390,1170,570" --panel medium --pack 2 --out <目录>
+python vw.py read --media <视频> --times "20,45" --region "60,390,1170,570" --panel medium --pack 2 --out <目录>
 ```
 
 把画面按 pw×ph 网格切成**可读面板**（自动跳过空白块），每张图放 `--pack` 个面板。
@@ -350,8 +348,7 @@ faster-whisper（CPU int8），输出 `asr.json`，每段挂上对应图版位�
 ### 10. report 交付
 
 ```bash
-python vw.py report <timeline.json> <shotlist.json> \
-  --manifest <manifest.json> --ocr <ocr.json> --asr <asr.json> --out <报告.md>
+python vw.py report <timeline.json> <shotlist.json> --manifest <manifest.json> --ocr <ocr.json> --asr <asr.json> --out <报告.md>
 ```
 
 生成交付骨架（元信息、量测段落表、转写表、位置映射、边界声明）；**完整描述/细节/摘要由我看图后填写**。
@@ -433,7 +430,8 @@ report(diff_lost(fr, 88, 90, target, out_png="overlay.png"))   # 差分取证 + 
 | ImageMagick 6 没有 `magick` 聚合入口 | 命令找不到 | 工具按版本号自动选 `magick` 或 `montage`/`convert`/`identify` |
 | Windows 上 `convert` 撞系统自带程序 | 调错程序 | 工具按版本号验，不命中 ImageMagick 就跳过 |
 | ffmpeg filter 里中文路径 | `metadata=file=` 报 `-22` | 工具已内置：相对路径 + `workdir` |
-| ImageMagick 字体路径被吃反斜杠 | 字体路径丢了分隔符，画出来**纯白空白** | 工具已内置：统一正斜杠 + 转义冒号 |
+| ImageMagick 字体路径被吃反斜杠 | 字体路径丢了分隔符，画出来**纯白空白** | 自己调 `magick -font` 时用正斜杠 |
+| **字体静默退回默认字体** | 图版索引**能看**，但**不是你指定的字体**；退出码 0、无任何报错 | 已内置：盘符路径转义后整体加引号；`doctor` 报生效状态，运行时失效会警告 |
 | PATH 里的 ffmpeg 是精简构建 | 缺 `scdet`/`tblend` 等滤镜 | 工具启动即校验，缺了明确报错 |
 | 输出中文乱码 | 控制台编码与 stdout 不一致 | 工具已内置：stdout/stderr 均按 UTF-8 输出 |
 | 越界抽帧 | 静默产出空文件 | 已改为明确报错 |

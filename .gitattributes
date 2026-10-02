@@ -1,2 +1,1 @@
-# 统一行尾：仓库内与检出后都用 LF，避免 Windows 上的 CRLF 弄坏 shebang 与 diff
 * text=auto eol=lf
