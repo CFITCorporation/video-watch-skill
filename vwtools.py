@@ -127,7 +127,8 @@ def track_box(frames_list, box, rule, fps=None, jump=300, label=""):
         delta = None if prev is None else n - prev
         rows.append({"i": i, "t": (i / fps) if fps else None, "n": n, "delta": delta})
         if delta is not None and abs(delta) >= jump:
-            print(f"  {label}帧{i} t={rows[-1]['t']:.2f}s 突变 {delta:+d} → {n}")
+            at = f" t={rows[-1]['t']:.2f}s" if fps else ""     # fps 不传就没有时间，别去格式化 None
+            print(f"  {label}帧{i}{at} 突变 {delta:+d} → {n}")
         prev = n
     return rows
 

@@ -37,6 +37,8 @@ description: "看视频与动图。把视频/GIF/录屏翻译成可核算的图�
 
 ### 安装命令
 
+**下面三组按你的系统选一组，不是依次全跑**：
+
 ```bash
 # Windows（winget 或 scoop）
 winget install Gyan.FFmpeg
@@ -254,7 +256,7 @@ GIF/WebP **按帧延迟归一化成真实时间轴**再走同一条路 —— �
 # 全片粗看：25 帧铺 5x5，一张图看完结构（≈350 token）
 python vw.py grid --media <视频> --frames 25 --cols 5 --out <目录>
 
-# 动作显微镜：把 1.4s 铺成 25 格 ≈ 1.8 帧取 1；要真逐帧得 --frames 43
+# 动作显微镜：把 1.44s 铺成 25 格 ≈ 1.8 帧取 1（以 30fps 计）；要真逐帧得 --frames 43
 python vw.py grid --media <视频> --t0 1.0 --t1 2.44 --frames 25 --cols 5 --out <目录>
 ```
 
@@ -320,10 +322,14 @@ python vw.py seq --media <视频> --center 2.0 --count 8 --step 0.1 --region "24
 
 ```bash
 # --times 要在片长内，--region 要在画面内
-python vw.py read --media <视频> --times "2,5" --region "100,100,600,400" --panel medium --pack 2 --out <目录>
+python vw.py read --media <视频> --times "2,5" --region "100,100,600,400" --panel medium --pack 1 --out <目录>
 ```
 
 把画面按 pw×ph 网格切成**可读面板**（自动跳过空白块），每张图放 `--pack` 个面板。
+
+> ⚠️ manifest 里的 `row` / `col` 是**该时刻面板网格内**的坐标（每个时刻从 1 重新数），
+> 与 `grid` / `sheet` 的「图版第几行第几列」**不是同一套坐标系** —— 引用时写清是哪张图版、
+> 按面板自己的行列数，或直接用 manifest 里的 `region` 字段。
 
 **为什么需要它**：格子在图片投影到视觉网格时的覆盖像素，决定小字能不能读。
 整帧 1284 宽时每格约 64px（18px 字读不了）；切成 620×170 面板后每格约 17px（**能读**）。
@@ -387,7 +393,7 @@ MEDIA, FPS = r"<素材>", <帧率>
 def target(a):                     # ← 本片专用判据，唯一需要动脑的地方
     return (a[..., 2] > 150) & (a[..., 1] - a[..., 0] > 15)
 
-fr = frames(MEDIA)
+fr = frames(MEDIA)                           # 整片解帧全进内存（720p 每帧约 2.6 MB）；长片加 limit=<帧数> / size=(w,h)
 for c in components(target(fr[0]))[:5]:     # 首帧有哪些对象
     print(c["px"], c["box"])
 

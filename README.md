@@ -33,6 +33,8 @@ video-watch 的做法是分工：
 
 其中 **`drawtext` 需要 ffmpeg 编译时带 libfreetype**，部分发行版与精简构建不带 —— 缺它时图版烧不上索引，所以工具在启动时就会校验并明确报错。
 
+**下面三组命令按你的系统选一组执行，不是依次全跑**：
+
 ```bash
 # Windows
 winget install Gyan.FFmpeg
@@ -118,7 +120,7 @@ python vw.py report work/timeline.json work/shotlist.json --manifest work/manife
 | 键 | 作用 |
 |---|---|
 | `ffmpeg` / `ffprobe` / `magick` / `font` | 外部程序与字体路径，填绝对路径；**留空则自动探测（推荐）** |
-| `outdir` | 所有输出的根目录；留空时各子命令落到当前目录下的 `vw_*\` 子目录（`probe` → `vw_out\`，`sheet` → `vw_sheets\`，其余是 `vw_<命令名>\`） |
+| `outdir` | 所有输出的根目录；留空时多数子命令落到当前目录下的 `vw_*\` 子目录（`probe` → `vw_out\`，`sheet` → `vw_sheets\`），但 **`plan` 落在时间轴同目录**、**`asr` 落在素材旁** |
 | `defaults.*` | 子命令默认参数，省得每次手敲 |
 
 **四个路径键通常留空即可** —— 留空就按环境变量与内置候选自动探测，`vw.py init` 还会把探测到的路径直接填好。

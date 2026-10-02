@@ -565,7 +565,7 @@ def cmd_plan(args):
     motion = {s: buckets[str(s)]["motion"] for s in secs}
 
     plan = [(round(i * (dur / args.skeleton) + dur / args.skeleton / 2, 2), "A",
-             f"骨架 {dur / args.skeleton:.0f}s 等间隔") for i in range(args.skeleton)]
+             f"骨架 {dur / args.skeleton:.2f}s 等间隔") for i in range(args.skeleton)]
     # 两端各留一帧防越界抽帧；原来固定 0.2s，对短素材会漏掉可观的尾部
     edge = max(0.05, 1.0 / ((tl.get("info") or {}).get("fps") or 30.0))
     plan += [(round(edge, 2), "A", f"开头 {edge:.2f}s"),
@@ -594,7 +594,7 @@ def cmd_plan(args):
             events.append((2, sg["end"], "活跃段终点"))
 
     budget = max(0, args.max - len(plan))
-    burst = args.burst if args.burst > 0 else 3
+    burst = args.burst if args.burst > 0 else (3 if dynamic else 1)
     budget = budget // burst if burst > 1 else budget
     window = max(1.0, args.window)
     n_win = max(1, int(dur // window) + 1)
@@ -819,6 +819,9 @@ def cmd_gif(args):
     img = Image.open(src)
     frames, t = [], 0.0
     for page in ImageSequence.Iterator(img):
+        # 先解码、再读 duration：Pillow 的 WebP 解码器是解码时才写这个键的。
+        # 先读会拿到上一帧的值（首帧落到兜底值），整条时间轴错位一拍。
+        page.load()
         delay = page.info.get("duration", img.info.get("duration", 100)) or 100
         frames.append({"index": len(frames), "start": round(t, 3),
                        "delay_ms": int(delay), "image": page.convert("RGBA").copy()})

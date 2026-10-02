@@ -38,6 +38,8 @@ The one-line criterion: **measurement nominates candidates, eyes assign names.**
 Without it, contact sheets come out with no burned-in indices, and the failure surfaces at the frame-extraction
 step rather than at the real cause — so the tool validates it at startup and says so plainly.
 
+**Pick the group matching your OS — these are alternatives, not a sequence:**
+
 ```bash
 # Windows
 winget install Gyan.FFmpeg
@@ -127,7 +129,7 @@ The config only supplies **defaults**. Precedence:
 | Key | Purpose |
 |---|---|
 | `ffmpeg` / `ffprobe` / `magick` / `font` | external program and font paths — absolute paths, or **leave empty to auto-detect (recommended)** |
-| `outdir` | root directory for all output; when empty each subcommand writes to a `vw_*` folder under the current directory (`probe` → `vw_out/`, `sheet` → `vw_sheets/`, others are `vw_<command>/`) |
+| `outdir` | root directory for all output; when empty most subcommands write to a `vw_*` folder under the current directory (`probe` → `vw_out/`, `sheet` → `vw_sheets/`), but **`plan` writes next to the timeline** and **`asr` next to the media** |
 | `defaults.*` | per-subcommand default arguments, so you stop typing them |
 
 **In practice you can leave all four path keys empty** — they auto-detect from the environment and built-in
