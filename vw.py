@@ -115,9 +115,21 @@ def cfg(key, default):
 
 
 def ffmpeg_candidates():
-    """ffmpeg 候选：VW_FFMPEG > 配置 ffmpeg > PATH。"""
-    return [c for c in (os.environ.get("VW_FFMPEG"), CONFIG.get("ffmpeg"),
-                        shutil.which("ffmpeg")) if c]
+    """ffmpeg 候选：VW_FFMPEG > 配置 ffmpeg > PATH，按路径去重。
+
+    配置里写的往往就是 PATH 里那一个，不去重会让 doctor 把同一行打印两遍。
+    """
+    seen, out = set(), []
+    for cand in (os.environ.get("VW_FFMPEG"), CONFIG.get("ffmpeg"),
+                 shutil.which("ffmpeg")):
+        if not cand:
+            continue
+        key = os.path.normcase(os.path.abspath(cand)) if os.path.sep in cand else cand
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(cand)
+    return out
 
 
 def font_candidates():
@@ -157,12 +169,17 @@ def scan_ffmpeg():
 
 
 def resolve_ffmpeg():
+    """挑一个可用的 ffmpeg。
+
+    顺序遍历候选，第一个合格的就用；碰到不合格的**当场中止**而不是往后找 ——
+    静默换用另一个构建，会让人以为配置里写的那个生效了。
+    """
     for cand, state, missing in scan_ffmpeg():
         if state == "ok":
             return cand
         if state == "missing":
             die(f"{cand} 缺少滤镜 {', '.join(missing)}；"
-                f"PATH 里的 ffmpeg 可能是裁剪版，请设置 VW_FFMPEG 指向完整版")
+                f"该构建不完整，请用 VW_FFMPEG 或配置文件指向完整版")
     die("找不到可用的 ffmpeg（需要含 scdet/freezedetect/drawtext 的完整构建，"
         "可用 VW_FFMPEG 指定路径）")
 
@@ -507,6 +524,10 @@ def cmd_probe(args):
     if not cuts:
         print("  ! 本素材无硬切点：采样必须由运动曲线与骨架承担")
     print(f"→ {path}")
+    an = os.path.join(outdir, "analysis_v.txt")
+    if os.path.exists(an):
+        print(f"  另写出量测原始数据 analysis_v.txt（{os.path.getsize(an) / 1024:.0f} KB，"
+              f"随片长增长，不需要可删）")
 
 
 def load_json(path):
@@ -747,8 +768,8 @@ def cmd_sheet(args):
                 os.remove(c)
             manifest["sheets"].append({
                 "sheet": strip_img, "kind": "strip",
-                "tiles": [{"pos": gi + 1, "t": s["t"], "reason": s["reason"]}
-                          for gi, s in enumerate(group)]})
+                "tiles": [{"pos": gi + 1, "t": s["t"], "frame": s.get("frame"),
+                           "reason": s["reason"]} for gi, s in enumerate(group)]})
             continue
         sheet = os.path.join(outdir, f"sheet_{si // step + 1:02d}.png")
         magick("montage", *paths, "-tile", f"{cols}x{rows}",
@@ -962,10 +983,10 @@ def cmd_grid(args):
 
     t0 = args.t0
     t1 = args.t1 if args.t1 is not None else info["duration"]
+    # t0 是取样点（取不到帧就是错）；t1 是区间端点，等于片长是合法的
     require_time_in_clip([t0], info["duration"], "起始时刻")
     if t1 > info["duration"]:
-        print(f"警告：结束时刻 {t1}s 超出素材时长 {info['duration']:.2f}s，超出部分会钳到片尾",
-              file=sys.stderr)
+        die(f"结束时刻 {t1}s 超出素材时长 {info['duration']:.2f}s")
     n = args.frames
     step = (t1 - t0) / max(1, n - 1)
     cols = args.cols
@@ -1042,6 +1063,9 @@ def cmd_seq(args):
         n = args.count
         wanted = [args.center + (i - n // 2) * args.step for i in range(n)]
         times = [t for t in wanted if 0 <= t <= info["duration"]]
+        if not times:
+            die(f"--center {args.center}s 配 --count {n} 的时刻全在素材范围外"
+                f"（0~{info['duration']:.2f}s）")
         if len(times) < len(wanted):
             print(f"警告：--center {args.center}s 配 --count {n} 会取到 {len(wanted)} 个时刻，"
                   f"其中 {len(wanted) - len(times)} 个超出素材范围，已丢弃",
@@ -1300,19 +1324,24 @@ def cmd_doctor(args):
     """依赖自检：逐项报出外部程序与可选库的状态，缺什么、怎么补。"""
     print(f"python      {sys.version.split()[0]}  [{sys.platform}]")
 
-    ffmpeg = None
+    # 与 resolve_ffmpeg() 同一判据：顺序遍历，第一个不合格的候选会让运行时当场中止，
+    # 所以它之后的候选即便合格也用不上 —— doctor 不能据此报「就绪」。
+    ffmpeg, blocked = None, False
     for cand, state, missing in scan_ffmpeg():
         if state == "ok":
-            ffmpeg = cand
             print(f"ffmpeg      {cand}")
             print(f"            {_version_line([cand, '-version']) or ''}")
-            break
-        if state == "path":
+            if not blocked:
+                ffmpeg = cand
+        elif state == "path":
             print(f"ffmpeg      {cand}  路径不存在")
         elif state == "exec":
             print(f"ffmpeg      {cand}  无法执行")
         else:
             print(f"ffmpeg      {cand}  缺滤镜 {', '.join(missing)}")
+            if not blocked:
+                blocked = True
+                print("            ↑ 运行时会在此中止，不会再往后找候选")
     if ffmpeg is None:
         print("ffmpeg      不可用：需要带 scdet/freezedetect/drawtext 的完整构建，"
               "见 README 安装一节；已装但不合格时用 VW_FFMPEG 指定")
@@ -1358,6 +1387,7 @@ def cmd_doctor(args):
         print("\n必需项就绪：probe / plan / sheet / grid / seq / read / report 可用")
     else:
         print("\n有必需项缺失：按上面提示补齐后再跑")
+        sys.exit(1)                      # 让脚本能把 doctor 当门禁用
 
 
 def cmd_init(args):

@@ -1,3 +1,8 @@
 # asr 子命令（语音转写，faster-whisper）。
 # 会连带装 ctranslate2 与 onnxruntime；首次运行另需下载模型。
 faster-whisper
+
+# 已知坑 —— 来自上游 issue #3 的部署记录，开发者尚未复现验证，故不写死成版本约束：
+#   · 若报 metadata_errors 或 PyAV 相关的错，把 av 降到 19 以下：pip install "av<19"
+#   · 直连 HuggingFace 超时，需要镜像
+#   · 走镜像仍 401，是 Xet 传输域名不可达，设 HF_HUB_DISABLE_XET=1

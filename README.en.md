@@ -127,7 +127,7 @@ The config only supplies **defaults**. Precedence:
 | Key | Purpose |
 |---|---|
 | `ffmpeg` / `ffprobe` / `magick` / `font` | external program and font paths — absolute paths, or **leave empty to auto-detect (recommended)** |
-| `outdir` | root directory for all output; when empty, each subcommand writes to its own folder under the current directory (e.g. `vw_grid/`) |
+| `outdir` | root directory for all output; when empty each subcommand writes to a `vw_*` folder under the current directory (`probe` → `vw_out/`, `sheet` → `vw_sheets/`, others are `vw_<command>/`) |
 | `defaults.*` | per-subcommand default arguments, so you stop typing them |
 
 **In practice you can leave all four path keys empty** — they auto-detect from the environment and built-in

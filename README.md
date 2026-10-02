@@ -118,7 +118,7 @@ python vw.py report work/timeline.json work/shotlist.json --manifest work/manife
 | 键 | 作用 |
 |---|---|
 | `ffmpeg` / `ffprobe` / `magick` / `font` | 外部程序与字体路径，填绝对路径；**留空则自动探测（推荐）** |
-| `outdir` | 所有输出的根目录；留空时各子命令落到当前目录下的 `<名字>\`（如 `vw_grid\`） |
+| `outdir` | 所有输出的根目录；留空时各子命令落到当前目录下的 `vw_*\` 子目录（`probe` → `vw_out\`，`sheet` → `vw_sheets\`，其余是 `vw_<命令名>\`） |
 | `defaults.*` | 子命令默认参数，省得每次手敲 |
 
 **四个路径键通常留空即可** —— 留空就按环境变量与内置候选自动探测，`vw.py init` 还会把探测到的路径直接填好。
