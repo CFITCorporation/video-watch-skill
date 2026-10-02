@@ -55,14 +55,14 @@ def die(msg):
 
 
 def require_time_in_clip(times, duration, label="时刻"):
-    """时刻越界就明确报错。
+    """时刻落在 [0, duration) 之外就明确报错。
 
-    不检查的话 ffmpeg 会把超出的时刻钳到片尾：产物照常生成、退出码 0，
-    但整张图版是同几帧的复制，表面完全正常。
+    不检查的话：越界时刻会被 ffmpeg 钳到片头/片尾 —— 产物照常生成、退出码 0，
+    但画面与 manifest 里记的时间对不上（负数还会被写成 t=-1.0s、frame=-30）。
     """
-    late = sorted({round(t, 3) for t in times if t >= duration})
-    if late:
-        die(f"{label} {'、'.join(f'{t}s' for t in late)} 超出素材时长 {duration:.2f}s")
+    bad = sorted({round(t, 3) for t in times if t < 0 or t >= duration})
+    if bad:
+        die(f"{label} {'、'.join(f'{t}s' for t in bad)} 超出素材范围（0~{duration:.2f}s）")
 
 
 def require_region_in_frame(region, width, height):
@@ -605,7 +605,12 @@ def cmd_plan(args):
         buckets_of_win[w].sort(key=lambda e: (e[0], e[1]))
     cursor = {w: 0 for w in buckets_of_win}
 
-    taken = 0
+    # MIN_GAP 不能大于骨架间隔，否则事件在骨架点之间挤不进任何位置：
+    # 9s 素材骨架 16 帧、间隔 0.56s，而 MIN_GAP 是 0.6s —— 事件会被全部跳过，
+    # 输出却只说「事件 0 处」，看不出工具其实已经检测到了它们。
+    # 系数取 0.4：两个骨架点之间要留出 0.2×间隔 的空档（1 − 2×0.4），事件才有落点。
+    min_gap = min(MIN_GAP, (dur / max(1, args.skeleton)) * 0.4)
+    taken, skipped = 0, 0
     progressing = True
     while taken < budget and progressing:
         progressing = False
@@ -616,7 +621,8 @@ def cmd_plan(args):
             while cursor[w] < len(lst):
                 pri, t, why = lst[cursor[w]]
                 cursor[w] += 1
-                if any(abs(t - p[0]) < MIN_GAP for p in plan):
+                if any(abs(t - p[0]) < min_gap for p in plan):
+                    skipped += 1
                     continue
                 plan.append((round(float(t), 2), "B", f"{why}"))
                 taken += 1
@@ -655,6 +661,9 @@ def cmd_plan(args):
           f"{args.burst_dt * fps:.0f} 帧）——按帧号顺序读即得运动")
     print(f"骨架 {args.skeleton} 帧（间隔 {dur / args.skeleton:.2f}s，盲区上界 {skeleton_gap:.2f}s）"
           f" + 事件 {taken} 处 → 共 {len(plan)} 帧")
+    if skipped:
+        print(f"  ! 另有 {skipped} 处候选事件与已选点过近被跳过（当前最小间隔 {min_gap:.2f}s）"
+              f"—— 想让它们进来就调稀 --skeleton 或调小 --burst")
     print(f"最终最大盲区 {final_gap:.2f}s  {sheets} 张 {cols}x{args.per_sheet // cols} 图版"
           f" ≈ {sheets * TOKENS_PER_IMAGE} token")
     per_win = {w: sum(1 for p in plan if p[1] == "B" and int(p[0] // window) == w)
@@ -1004,8 +1013,13 @@ def cmd_grid(args):
     if t1 > info["duration"]:
         die(f"结束时刻 {t1}s 超出素材时长 {info['duration']:.2f}s")
     n = args.frames
+    total = info["duration"] * info["fps"]
+    if n > total + 1:
+        die(f"--frames {n} 超过素材总帧数（约 {total:.0f} 帧）")
     step = (t1 - t0) / max(1, n - 1)
     cols = args.cols
+    if cols < 1:
+        die(f"--cols 必须是正整数，收到 {cols}")
     rows = (n + cols - 1) // cols
     tile_w = SHEET_PX // cols - 2
     font = require_font(ffmpeg)
@@ -1075,6 +1089,7 @@ def cmd_seq(args):
 
     if args.times:
         times = [float(v) for v in args.times.split(",")]
+        require_time_in_clip(times, info["duration"])
     elif args.center is not None:
         n = args.count
         wanted = [args.center + (i - n // 2) * args.step for i in range(n)]
