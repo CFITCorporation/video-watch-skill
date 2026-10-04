@@ -1409,9 +1409,13 @@ def cmd_doctor(args):
     ffmpeg, blocked = None, False
     for cand, state, missing in scan_ffmpeg():
         if state == "ok":
-            print(f"ffmpeg      {cand}" + ("   （备选）" if blocked else ""))
+            # 只认第一个合格候选 —— resolve_ffmpeg() 就是取第一个。此前写成
+            # 「每个 ok 都覆盖」，两个候选都合格时会探到后面那个，
+            # 于是 doctor 报的就绪结论不对应运行时真正使用的构建。
+            backup = blocked or ffmpeg is not None
+            print(f"ffmpeg      {cand}" + ("   （备选）" if backup else ""))
             print(f"            {_version_line([cand, '-version']) or ''}")
-            if not blocked:
+            if not backup:
                 ffmpeg = cand
         elif state == "path":
             print(f"ffmpeg      {cand}  路径不存在")
