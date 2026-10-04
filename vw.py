@@ -65,13 +65,19 @@ def require_time_in_clip(times, duration, label="时刻"):
         die(f"{label} {'、'.join(f'{t}s' for t in bad)} 超出素材范围（0~{duration:.2f}s）")
 
 
-def require_region_in_frame(region, width, height):
-    """裁切区域越界就明确报错 —— ffmpeg 的 crop 越界时会静默钳位。"""
+def require_region_in_frame(region, width, height, flag="--region"):
+    """裁切区域越界就明确报错 —— ffmpeg 的 crop 越界时会静默钳位。
+
+    四个方向都要查：右下越界会被钳到画面边界，负坐标会被钳到 0，
+    两者都是「退出码 0、产出的却是另一块画面」。
+    """
     x, y, w, h = region
     if w <= 0 or h <= 0:
-        die(f"--region 的宽高必须为正数，收到 w={w} h={h}")
+        die(f"{flag} 的宽高必须为正数，收到 w={w} h={h}")
+    if x < 0 or y < 0:
+        die(f"{flag} 的起点不能为负，收到 x={x} y={y}")
     if x + w > width or y + h > height:
-        die(f"--region x={x} y={y} w={w} h={h} 超出画面 {width}x{height}")
+        die(f"{flag} x={x} y={y} w={w} h={h} 超出画面 {width}x{height}")
 
 
 CONFIG = {}
@@ -734,6 +740,8 @@ def cmd_sheet(args):
                 raise ValueError
         except ValueError:
             die("--strip 需要 x,y,w,h 四个整数")
+        require_region_in_frame(tuple(strip), src_info["width"], src_info["height"],
+                                flag="--strip")
     per_strip = per_sheet
     if strip:
         sx, sy, sw, sh = strip
@@ -747,7 +755,12 @@ def cmd_sheet(args):
 
     manifest = {"media": os.path.basename(media), "per_sheet": per_sheet, "cols": cols,
                 "rows": rows, "tile_width": tile_w, "mode": "strip" if strip else
-                ("diff" if args.diff else "plain"), "sheets": []}
+                ("diff" if args.diff else "plain")}
+    if strip:
+        # 与 read / seq 一致：记下裁剪区域 —— 少了它，从产物和清单两端
+        # 都看不出画面是否被 crop 钳过。放在 sheets 之前，便于人读。
+        manifest["region"] = f"{strip[0]},{strip[1]},{strip[2]},{strip[3]}"
+    manifest["sheets"] = []
 
     strip_paths = []
     for si in range(0, len(shots), step):
