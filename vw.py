@@ -673,17 +673,20 @@ def cmd_plan(args):
           f" + 事件 {taken} 处 → 共 {len(plan)} 帧")
     if skipped:
         print(f"  ! 另有 {skipped} 处候选事件与已选点过近被跳过（当前最小间隔 {min_gap:.2f}s）")
+    # 提示只说事实，不预测"改了参数会怎样" —— 预算够不代表采得到（候选可能全被
+    # min_gap 挡着），许诺一个兑现不了的数字比不说更糟。
     if unconsidered:
         print(f"  ! 还有 {unconsidered} 处候选事件因预算用尽未纳入 —— 本片共 "
               f"{taken + skipped + unconsidered} 处候选，纳入 {taken} 处。"
-              f"想提高覆盖就调大 --max 或调小 --burst")
+              f"调大 --max 会让它们进入择选（能否采到还取决于与已选点的间隔）")
     if taken == 0 and (skipped or unconsidered):
-        # --max 到某个值以下就完全没反应（预算 ÷ burst 后为 0），
-        # 用户会以为"调大没用"或"事件本来就少"，所以把阈值报出来。
-        need = base_frames + burst
-        print(f"  ! --max {args.max} 装不下任何事件：骨架与两端已占 {base_frames} 帧，"
-              f"每个事件点要 {burst} 帧，至少要到 {need} 才会纳入第一个事件"
-              f"（或调小 --skeleton）")
+        if budget == 0:
+            need = base_frames + burst
+            print(f"  ! --max {args.max} 装不下任何事件：骨架与两端先占 {base_frames} 帧"
+                  f"（去重前），每个事件点要 {burst} 帧 —— 要到 {need} 才有预算")
+        else:
+            print(f"  ! 有 {budget} 个事件点的预算，却一个都没进来：候选点全都离已选点太近"
+                  f"（当前最小间隔 {min_gap:.2f}s）—— 调大 --max 没用，要调稀 --skeleton")
     print(f"最终最大盲区 {final_gap:.2f}s  {sheets} 张 {cols}x{args.per_sheet // cols} 图版"
           f" ≈ {sheets * TOKENS_PER_IMAGE} token")
     per_win = {w: sum(1 for p in plan if p[1] == "B" and int(p[0] // window) == w)
@@ -1637,7 +1640,7 @@ def build_parser():
     p.add_argument("timeline")
     p.add_argument("--skeleton", type=int, default=cfg("skeleton", 16))
     p.add_argument("--max", type=int, default=cfg("max", 36),
-                   help="事件部分的预算上限；骨架与两端先占位，需大于 skeleton+2+burst 才纳入事件")
+                   help="事件部分的预算上限；骨架与两端先占位，需不小于 skeleton+2+burst 才纳入事件")
     p.add_argument("--window", type=float, default=120.0)
     p.add_argument("--per-sheet", type=int, default=9, choices=sorted(COLS_FOR))
     p.add_argument("--pix-thresh", type=float, default=128.0,
