@@ -315,10 +315,14 @@ def resolve_font():
 
 
 def _probe_render(ffmpeg, font):
-    """渲染一个字符，返回产物的哈希；渲染不出来返回 None。"""
+    """渲染一个字符，返回产物的哈希；渲染不出来返回 None。
+
+    font 传 None 表示**不指定 fontfile**，用于取 ffmpeg 默认字体的基准产物。
+    """
     with tempfile.TemporaryDirectory() as td:
         out = os.path.join(td, "probe.png")
-        vf = f"drawtext=fontfile={font}:text='7':x=4:y=2:fontsize=20:fontcolor=yellow"
+        ff = f"fontfile={font}:" if font else ""
+        vf = f"drawtext={ff}text='7':x=4:y=2:fontsize=20:fontcolor=yellow"
         r = subprocess.run(
             [ffmpeg, "-hide_banner", "-loglevel", "error", "-f", "lavfi",
              "-i", "color=c=black:s=120x48:d=1", "-frames:v", "1", "-vf", vf, "-y", out],
@@ -329,20 +333,30 @@ def _probe_render(ffmpeg, font):
             return hashlib.sha256(fh.read()).hexdigest()
 
 
-def font_effective(ffmpeg, font):
+def font_effective(ffmpeg, raw_font):
     """fontfile 是否真的生效，返回 True / False / None（判不了）。
 
-    判据是以「一个保证不存在的字体路径」作对照：ffmpeg 在路径解析失败时会静默
-    退回默认字体，产物与对照相同即说明 fontfile 根本没被读。
+    **入参是原始路径**（未做 ffmpeg 转义），内部自己转义。
+
+    判据是拿「**不指定 fontfile**」的渲染作基准 —— 那是 ffmpeg 自己的默认字体：
+
+      · 目标渲染失败          → False，你拿不到指定的字体
+      · 目标产物 == 基准产物   → False，fontfile 没被读，退回了默认字体
+      · 目标产物 ≠ 基准产物   → True，确实在用它
+
+    不用「一个不存在的路径」作对照：ffmpeg 9.0 起遇到坏 fontfile 会**直接报错、
+    不出图**，那条对照在 9.0 上根本立不起来（早期版本才会静默退回默认字体）——
+    而上面这个基准判据在新老版本上都成立。
+
+    局限：若目标字体**恰好就是** ffmpeg 的默认字体，会被判成 False（假阴性）。
     """
-    mine = _probe_render(ffmpeg, font)
+    mine = _probe_render(ffmpeg, escape_filter_path(raw_font))
     if mine is None:
+        return False
+    base = _probe_render(ffmpeg, None)
+    if base is None:
         return None
-    ghost = _probe_render(ffmpeg, escape_filter_path(
-        os.path.join(tempfile.gettempdir(), "__vw_no_such_font__.ttf")))
-    if ghost is None:
-        return None
-    return mine != ghost
+    return mine != base
 
 
 def require_font(ffmpeg):
@@ -351,8 +365,12 @@ def require_font(ffmpeg):
     警告走 stdout 而不是 stderr —— 脚本化调用通常只看 stdout 与退出码，
     写进 stderr 会让他们拿着一份字体不对的图版继续往下做。
     """
-    font = resolve_font()
-    if font_effective(ffmpeg, font) is False:
+    raw = find_font()
+    if raw is None:
+        die("找不到可用于 drawtext 的字体：装 DejaVu 或 Noto 字体，"
+            "或用 VW_FONT 指向一个 .ttf/.ttc")
+    font = escape_filter_path(raw)
+    if font_effective(ffmpeg, raw) is False:
         print("警告：字体未生效，ffmpeg 已退回默认字体 —— 图版里的索引不是你指定的字体。"
               "判据与处理见 AGENTS.md 的字体一节。")
     return font
@@ -1455,7 +1473,7 @@ def cmd_doctor(args):
     font = find_font()
     if font:
         print(f"font        {font}")
-        eff = font_effective(ffmpeg, escape_filter_path(font)) if ffmpeg else None
+        eff = font_effective(ffmpeg, font) if ffmpeg else None
         if eff is True:
             print("            生效：ffmpeg 确实加载了它")
         elif eff is False:
