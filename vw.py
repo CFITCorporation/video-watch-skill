@@ -174,6 +174,25 @@ def scan_ffmpeg():
     return rows
 
 
+def vwtools_ready(ffmpeg):
+    """这个 ffmpeg 认不认 -fps_mode —— vwtools 的逐帧解帧依赖它。
+
+    ffmpeg 9.0 移除了 -vsync，而 -fps_mode 从 5.1 起代码即可用。返回 True/False/None。
+    **只在 doctor 里调用**：它是额外一次进程，放进 scan_ffmpeg 就等于给所有子命令加开销。
+    """
+    if not ffmpeg:
+        return None
+    try:
+        r = subprocess.run([ffmpeg, "-hide_banner", "-loglevel", "error",
+                            "-f", "lavfi", "-i", "color=c=black:s=16x16:d=1",
+                            "-frames:v", "1", "-fps_mode", "passthrough",
+                            "-f", "null", "-"],
+                           capture_output=True, timeout=30)
+    except OSError:
+        return None
+    return r.returncode == 0
+
+
 def resolve_ffmpeg():
     """挑一个可用的 ffmpeg。
 
@@ -1412,6 +1431,14 @@ def cmd_doctor(args):
             print(f"ffprobe     {probe}")
         else:
             print("ffprobe     找不到，用 VW_FFPROBE 指定")
+        ready = vwtools_ready(ffmpeg)
+        if ready is True:
+            print("vwtools     可用（逐帧解帧用 -fps_mode，需 ffmpeg ≥ 5.1）")
+        elif ready is False:
+            print("vwtools     不可用：这个构建不认识 -fps_mode，需要 ffmpeg ≥ 5.1"
+                  "（更老的用 -vsync，而它已被 9.0 移除，两边只能选一个）")
+        else:
+            print("vwtools     无法判定")
 
     im = find_magick()
     if im:

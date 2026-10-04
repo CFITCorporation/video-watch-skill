@@ -27,7 +27,7 @@ video-watch 的做法是分工：
 | 依赖 | 版本/要求 | 说明 |
 |---|---|---|
 | Python | 3.8+ | 主链路只用标准库 |
-| ffmpeg + ffprobe | **完整构建** | 必须含 `scdet` `freezedetect` `silencedetect` `tblend` `signalstats` `tile` `drawtext` |
+| ffmpeg + ffprobe | **完整构建，≥ 5.1** | 必须含 `scdet` `freezedetect` `silencedetect` `tblend` `signalstats` `tile` `drawtext`；`vwtools` 还需要 `-fps_mode`（5.1 起，`-vsync` 已被 9.0 移除） |
 | ImageMagick | 6.x 或 7.x | 拼贴图版与差分合成 |
 | TrueType 字体 | | `drawtext` 烧帧号索引；各平台通常自带 |
 

@@ -69,8 +69,10 @@ def frames(media, limit=None, size=None):
 
     with tempfile.TemporaryDirectory() as td:
         vf = f"scale={size[0]}:{size[1]}" if size else "null"
+        # 用 -fps_mode 而不是 -vsync：ffmpeg 9.0 移除了 -vsync，而 -fps_mode 从
+        # 5.1 起代码即可用（只是官方文档到 9.0 才写它）。本机实测两者逐帧完全相同。
         subprocess.run([FFMPEG, "-hide_banner", "-loglevel", "error", "-i", media,
-                        "-vf", vf, "-vsync", "0",
+                        "-vf", vf, "-fps_mode", "passthrough",
                         os.path.join(td, "f%06d.png")], check=True)
         files = sorted(os.listdir(td))
         if limit:

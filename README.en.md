@@ -30,7 +30,7 @@ The one-line criterion: **measurement nominates candidates, eyes assign names.**
 | Dependency | Version / requirement | Notes |
 |---|---|---|
 | Python | 3.8+ | the core pipeline uses the standard library only |
-| ffmpeg + ffprobe | **full build** | must include `scdet` `freezedetect` `silencedetect` `tblend` `signalstats` `tile` `drawtext` |
+| ffmpeg + ffprobe | **full build, ≥ 5.1** | must include `scdet` `freezedetect` `silencedetect` `tblend` `signalstats` `tile` `drawtext`; `vwtools` also needs `-fps_mode` (available since 5.1 — `-vsync` was removed in 9.0) |
 | ImageMagick | 6.x or 7.x | tiling contact sheets, diff compositing |
 | TrueType font | | `drawtext` burns in frame indices; usually present already |
 

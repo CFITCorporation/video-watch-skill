@@ -91,3 +91,5 @@ ffmpeg -f lavfi -i "testsrc2=size=1280x720:rate=30:duration=9" -f lavfi -i "sine
 - 宿主技能列表里能看到它
 - `doctor` 报「必需项就绪」
 - 真实素材跑通 `probe` 与 `grid`，图版里能看见烧上去的帧号索引
+- **`doctor` 的 `vwtools` 一行报「可用」** —— 它走的是 `-fps_mode`（需 ffmpeg ≥ 5.1），
+  主链路跑通**不代表**这条管道可用，所以单独核一眼
