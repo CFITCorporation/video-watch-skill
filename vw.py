@@ -600,6 +600,7 @@ def cmd_plan(args):
             events.append((2, sg["end"], "活跃段终点"))
 
     budget = max(0, args.max - len(plan))
+    base_frames = len(plan)          # 骨架 + 两端余量，事件只能用剩下的额度
     burst = args.burst if args.burst > 0 else (3 if dynamic else 1)
     budget = budget // burst if burst > 1 else budget
     window = max(1.0, args.window)
@@ -676,6 +677,13 @@ def cmd_plan(args):
         print(f"  ! 还有 {unconsidered} 处候选事件因预算用尽未纳入 —— 本片共 "
               f"{taken + skipped + unconsidered} 处候选，纳入 {taken} 处。"
               f"想提高覆盖就调大 --max 或调小 --burst")
+    if taken == 0 and (skipped or unconsidered):
+        # --max 到某个值以下就完全没反应（预算 ÷ burst 后为 0），
+        # 用户会以为"调大没用"或"事件本来就少"，所以把阈值报出来。
+        need = base_frames + burst
+        print(f"  ! --max {args.max} 装不下任何事件：骨架与两端已占 {base_frames} 帧，"
+              f"每个事件点要 {burst} 帧，至少要到 {need} 才会纳入第一个事件"
+              f"（或调小 --skeleton）")
     print(f"最终最大盲区 {final_gap:.2f}s  {sheets} 张 {cols}x{args.per_sheet // cols} 图版"
           f" ≈ {sheets * TOKENS_PER_IMAGE} token")
     per_win = {w: sum(1 for p in plan if p[1] == "B" and int(p[0] // window) == w)
@@ -1628,7 +1636,8 @@ def build_parser():
     p = sub.add_parser("plan", help="采样：骨架优先的抽样计划")
     p.add_argument("timeline")
     p.add_argument("--skeleton", type=int, default=cfg("skeleton", 16))
-    p.add_argument("--max", type=int, default=cfg("max", 36))
+    p.add_argument("--max", type=int, default=cfg("max", 36),
+                   help="事件部分的预算上限；骨架与两端先占位，需大于 skeleton+2+burst 才纳入事件")
     p.add_argument("--window", type=float, default=120.0)
     p.add_argument("--per-sheet", type=int, default=9, choices=sorted(COLS_FOR))
     p.add_argument("--pix-thresh", type=float, default=128.0,
